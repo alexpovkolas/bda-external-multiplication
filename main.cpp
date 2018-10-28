@@ -27,37 +27,20 @@ void mul(const unsigned char *a, size_t na, size_t ma, const unsigned char *b, s
 }
 
 
-void external_multiplication(ifstream &in, ofstream &out, int n, int m, int memory_size) {
+void external_multiplication(ifstream &in, ofstream &out, int n, int memory_size) {
     int read_block_size = memory_size / 3;
 
-    int lines_block_count = 0;    // lines count we read for one block
-    int cols_block_count = sqrt(
-            read_block_size); // columns count we read for one block. One block is matrix lines_count * cols_count
-    if (cols_block_count < n && cols_block_count < m) {
-        lines_block_count = cols_block_count;
-    } else if (cols_block_count >= n && cols_block_count >= m) {
-        lines_block_count = n;
-        cols_block_count = m;
-    } else if (cols_block_count >= n) {
-        lines_block_count = n;
-        cols_block_count = read_block_size / lines_block_count;
-    } else if (cols_block_count >= m) {
-        cols_block_count = m;
-        lines_block_count = read_block_size / cols_block_count;
+    int block_count = sqrt(read_block_size); // columns count we read for one block. One block is matrix lines_count * cols_count
+    if (block_count >= n) {
+        block_count = n;
     }
 
-#ifdef __PROFILE__
-    int file_reads_count = 0;
-    int file_writes_count = 0;
-    cout << "lines_block_count = " << lines_block_count << " cols_block_count = " << cols_block_count << endl;
-#endif
-
-    unsigned char *a = new unsigned char[lines_block_count * cols_block_count];
-    unsigned char *b = new unsigned char[lines_block_count * cols_block_count];
-    unsigned char *c = new unsigned char[lines_block_count * max(cols_block_count, lines_block_count)];
+    unsigned char *a = new unsigned char[block_count * block_count];
+    unsigned char *b = new unsigned char[block_count * block_count];
+    unsigned char *c = new unsigned char[block_count * block_count];
     int params_offset = 8;
 
-    int blocks = ceil(n / (double) lines_block_count);
+    int blocks = ceil(n / (double) block_count);
 
 #ifdef __PROFILE__
     cout << "blocks = " << blocks << endl;
@@ -66,24 +49,21 @@ void external_multiplication(ifstream &in, ofstream &out, int n, int m, int memo
     for (int i = 0; i < blocks; ++i) {
         for (int j = 0; j < blocks; ++j) {
 
-            fill(c, c + lines_block_count * max(cols_block_count, lines_block_count), 0);
+            fill(c, c + block_count * block_count, 0);
 
             for (int k = 0; k < blocks; ++k) {
 
                 // read block
                 int lines_to_read =
-                        n - lines_block_count * i > lines_block_count ? lines_block_count : n - lines_block_count * i;
+                        n - block_count * i > block_count ? block_count : n - block_count * i;
                 int cols_to_read =
-                        m - cols_block_count * k > cols_block_count ? cols_block_count : m - cols_block_count * k;
+                        n - block_count * k > block_count ? block_count : n - block_count * k;
 
-#ifdef __PROFILE__
-                cout << "lines_to_read = " << lines_to_read << " cols_to_read = " << cols_to_read << endl;
-#endif
                 // Read a block from A matrix
                 for (int l = 0; l < lines_to_read; ++l) {
                     long a_offset = params_offset +         // n and m 8 bytes
-                                         (l + i * lines_block_count) * m +    // lines offset
-                                         k * cols_block_count;   // offset inside current line
+                                         (l + i * block_count) * n +    // lines offset
+                                         k * block_count;   // offset inside current line
                     in.seekg(a_offset);
                     in.read((char *)a + l * cols_to_read, cols_to_read);
                 }
@@ -93,8 +73,8 @@ void external_multiplication(ifstream &in, ofstream &out, int n, int m, int memo
                 for (int l = 0; l < cols_to_read; ++l) {
                     // Mirror source offset
                     long b_offset = 2 * params_offset + n * n +
-                                       (l + k * cols_block_count) * n +
-                                       i * lines_block_count;
+                                       (l + j * block_count) * n +
+                                       k * block_count;
                     in.seekg(b_offset);
                     in.read((char *)b + l * lines_to_read, lines_to_read);
                 }
@@ -104,47 +84,45 @@ void external_multiplication(ifstream &in, ofstream &out, int n, int m, int memo
                 mul(a, lines_to_read, cols_to_read, b, cols_to_read, lines_to_read, c);
 
 #ifdef __PROFILE__
-                for(int i=0; i<lines_to_read*lines_to_read; ++i)
+                for(int i=0; i<lines_to_read*cols_to_read; ++i)
                     cout << hex << (int)a[i] << " ";
 
                 cout << endl;
 
-                for(int i=0; i<lines_to_read*lines_to_read; ++i)
+                for(int i=0; i<lines_to_read*cols_to_read; ++i)
                     cout << hex << (int)b[i] << " ";
 
                 cout << endl;
-
-                for(int i=0; i<lines_to_read*lines_to_read; ++i)
-                    cout << hex << (int)c[i] << " ";
-
 #endif
-
             }
 
 
             // write block
-            int lines_to_read =
-                    n - lines_block_count * i > lines_block_count ? lines_block_count : n - lines_block_count * i;
-            int cols_to_read =
-                    m - cols_block_count * j > cols_block_count ? cols_block_count : m - cols_block_count * j;
+            int lines_to_write =
+                    n - block_count * i > block_count ? block_count : n - block_count * i;
+            int cols_to_write =
+                    n - block_count * j > block_count ? block_count : n - block_count * j;
 
-            for (int k = 0; k < lines_to_read; ++k) {
+            cout << endl;
+
+            for(int i=0; i<lines_to_write*cols_to_write; ++i)
+                cout << hex << (int)c[i] << " ";
+
+            cout << endl << endl;
+
+
+            for (int k = 0; k < lines_to_write; ++k) {
                 // Mirror source offset
                 long dest_offset = params_offset +
-                                   (k + j * cols_block_count) * n +
-                                   i * lines_block_count;
+                                   (k + j * block_count) * n +
+                                   i * block_count;
                 out.seekp(dest_offset);
-                out.write((char *)c + k * cols_to_read, cols_to_read);
+                out.write((char *)c + k * cols_to_write, cols_to_write);
 
             }
 
         }
     }
-
-#ifdef __PROFILE__
-    cout << "file_writes_count = " << file_writes_count << " file_reads_count = " << file_reads_count << endl;
-#endif
-
 }
 
 #ifdef __PROFILE__
@@ -197,7 +175,7 @@ bool compare_files(const string& filename1, const string& filename2)
 int main() {
 
 #ifdef __PROFILE__
-    gen_test(3);
+    gen_test(5);
     chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 #endif
 
@@ -210,9 +188,10 @@ int main() {
     out.write((char *) &n, 4);
     out.write((char *) &n, 4);
 
-    int memory_limit = 500000 - 1000;
+    //int memory_limit = 500000 - 1000;
+    int memory_limit = 12;
 
-    external_multiplication(in, out, n, n, memory_limit);
+    external_multiplication(in, out, n, memory_limit);
 
     out.close();
 
