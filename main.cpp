@@ -20,7 +20,7 @@ void mul(const unsigned char *a, size_t na, size_t ma, const unsigned char *b, s
         for (int j = 0; j < mb; ++j) {
             for (int k = 0; k < ma; ++k) {
                 //result[i][j] += a[i][k] + b[k][j];
-                result[i * na + j] += a[i * na + k] + b[k * nb + j];
+                result[i * na + j] += a[i * na + k] * b[k * nb + j];
             }
         }
     }
@@ -52,9 +52,9 @@ void external_multiplication(ifstream &in, ofstream &out, int n, int m, int memo
     cout << "lines_block_count = " << lines_block_count << " cols_block_count = " << cols_block_count << endl;
 #endif
 
-    char *a = new char[lines_block_count * cols_block_count];
-    char *b = new char[lines_block_count * cols_block_count];
-    char *c = new char[lines_block_count * max(cols_block_count, lines_block_count)];
+    unsigned char *a = new unsigned char[lines_block_count * cols_block_count];
+    unsigned char *b = new unsigned char[lines_block_count * cols_block_count];
+    unsigned char *c = new unsigned char[lines_block_count * max(cols_block_count, lines_block_count)];
     int params_offset = 8;
 
     int blocks = ceil(n / (double) lines_block_count);
@@ -85,7 +85,7 @@ void external_multiplication(ifstream &in, ofstream &out, int n, int m, int memo
                                          (l + i * lines_block_count) * m +    // lines offset
                                          k * cols_block_count;   // offset inside current line
                     in.seekg(a_offset);
-                    in.read(a + l * cols_to_read, cols_to_read);
+                    in.read((char *)a + l * cols_to_read, cols_to_read);
                 }
 
 
@@ -96,10 +96,29 @@ void external_multiplication(ifstream &in, ofstream &out, int n, int m, int memo
                                        (l + k * cols_block_count) * n +
                                        i * lines_block_count;
                     in.seekg(b_offset);
-                    in.read(b + l * lines_to_read, lines_to_read);
+                    in.read((char *)b + l * lines_to_read, lines_to_read);
                 }
 
-                mul((unsigned char*)a, lines_to_read, cols_to_read, (unsigned char*)b, cols_to_read, lines_to_read, (unsigned char*)c);
+
+
+                mul(a, lines_to_read, cols_to_read, b, cols_to_read, lines_to_read, c);
+
+#ifdef __PROFILE__
+                for(int i=0; i<lines_to_read*lines_to_read; ++i)
+                    cout << hex << (int)a[i] << " ";
+
+                cout << endl;
+
+                for(int i=0; i<lines_to_read*lines_to_read; ++i)
+                    cout << hex << (int)b[i] << " ";
+
+                cout << endl;
+
+                for(int i=0; i<lines_to_read*lines_to_read; ++i)
+                    cout << hex << (int)c[i] << " ";
+
+#endif
+
             }
 
 
@@ -115,7 +134,7 @@ void external_multiplication(ifstream &in, ofstream &out, int n, int m, int memo
                                    (k + j * cols_block_count) * n +
                                    i * lines_block_count;
                 out.seekp(dest_offset);
-                out.write(c + k * cols_to_read, cols_to_read);
+                out.write((char *)c + k * cols_to_read, cols_to_read);
 
             }
 
