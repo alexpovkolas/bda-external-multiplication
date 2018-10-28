@@ -189,6 +189,7 @@ int main() {
 
     in.read((char *) &n, 4);
     out.write((char *) &n, 4);
+    out.write((char *) &n, 4);
 
     int memory_limit = 500000 - 1000;
 
