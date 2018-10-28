@@ -137,7 +137,7 @@ void gen_test(int n) {
     file.write((char *)&n, 4);
     file.write((char *)&n, 4);
 
-    for (int i = 1; i <= n; i++){
+    for (int i = 1; i <= n * n; i++){
         file.write((char *)&i, 1);
     }
 
@@ -145,7 +145,10 @@ void gen_test(int n) {
     file.write((char *)&n, 4);
 
     for (int i = 0; i < n; i++){
-        file.write((char *)&i, i % n == i / n ? 1 : 0);
+        for (int j = 0; j < n; j++) {
+            char r = i == j ? 1 : 0;
+            file.write((char *) &r, 1);
+        }
     }
 
     file.close();
